@@ -1,113 +1,196 @@
-import Image from "next/image";
+'use client';
+
+import { useRef, useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import VideoBackground from '@/components/VideoBackground';
+import ExhibitionsSection from '@/components/ExhibitionsSection';
+import WorkSection from '@/components/WorkSection';
+
+const NAV_H = 108;
+
+function HomeInner() {
+  const mainRef = useRef(null);
+  const heroRef = useRef(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const activeTab = searchParams.get('tab') || 'exhibitions';
+  const exhibitionId = searchParams.get('exhibition') || null;
+
+  const [navLocked, setNavLocked] = useState(false);
+  const [firestoreExhibitions, setFirestoreExhibitions] = useState([]);
+  const [emailCopied, setEmailCopied] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/exhibitions')
+      .then((r) => r.ok ? r.json() : [])
+      .then(setFirestoreExhibitions)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const scrollRoot = document.getElementById('scroll-root');
+    if (!scrollRoot) return;
+
+    const check = () => {
+      const heroBottom = heroRef.current
+        ? heroRef.current.getBoundingClientRect().bottom
+        : 0;
+      setNavLocked(heroBottom <= 0);
+    };
+
+    scrollRoot.addEventListener('scroll', check, { passive: true });
+    check();
+    return () => scrollRoot.removeEventListener('scroll', check);
+  }, []);
+
+  function handleTabClick(tab) {
+    if (activeTab === tab) return;
+    mainRef.current?.scrollIntoView({ behavior: 'smooth' });
+    router.replace(`/?tab=${tab}`, { scroll: false });
+  }
+
+  function handleExhibitionSelect(id) {
+    router.replace(`/?tab=exhibitions&exhibition=${id}`, { scroll: false });
+  }
+
+  function handleIndexClick() {
+    mainRef.current?.scrollIntoView({ behavior: 'smooth' });
+    router.replace(`/?tab=exhibitions`, { scroll: false });
+  }
+
+  function handleCopyEmail() {
+    navigator.clipboard.writeText('ediexxu@gmail.com')
+      .then(() => {
+        setEmailCopied(true);
+        setTimeout(() => setEmailCopied(false), 2000);
+      })
+      .catch(() => {});
+  }
+
+  const navContent = (
+    <div className="text-center py-7 font-alte-haas font-bold text-[12px] tracking-wide">
+      <div className="mb-1 flex justify-center gap-5">
+        <span
+          onClick={handleIndexClick}
+          className="cursor-pointer hover:opacity-50 transition-opacity"
+        >
+          INDEX
+        </span>
+        <a
+          href="https://edie-xu-portfolio.s3.us-east-2.amazonaws.com/assets/Edie+X+Resume-1.pdf"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="cursor-pointer hover:opacity-50 transition-opacity"
+        >
+          CV
+        </a>
+        <span
+          onClick={handleCopyEmail}
+          className="cursor-pointer hover:opacity-50 transition-opacity"
+        >
+          {emailCopied ? 'EMAIL COPIED :)' : 'EMAIL'}
+        </span>
+        <a
+          href="https://www.instagram.com/e__xu/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="cursor-pointer hover:opacity-50 transition-opacity"
+        >
+          INSTAGRAM
+        </a>
+        <span
+          onClick={() => handleTabClick('videos')}
+          className="cursor-pointer hover:opacity-50 transition-opacity"
+        >
+          VIDEO
+        </span>
+      </div>
+      <div className="flex justify-center gap-5">
+        <button
+          onClick={() => handleTabClick('exhibitions')}
+          className={`cursor-pointer hover:opacity-50 transition-opacity ${activeTab === 'exhibitions' ? 'font-bold' : 'font-normal'}`}
+        >
+          Exhibition
+        </button>
+        <button
+          onClick={() => handleTabClick('work')}
+          className={`cursor-pointer hover:opacity-50 transition-opacity ${activeTab === 'work' ? 'font-bold' : 'font-normal'}`}
+        >
+          Works
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <VideoBackground />
+
+      <span className="fixed top-6 left-6 z-10 text-white text-xs pointer-events-none select-none font-alte-haas font-bold">
+        EDIE XU
+      </span>
+
+      <div ref={heroRef} style={{ height: `calc(100vh - ${NAV_H + 17}px)` }} />
+
+      <main ref={mainRef} className="relative z-20 bg-white w-full">
+
+        {navLocked && (
+          <div
+            className="fixed top-0 left-0 right-0 z-40 bg-white"
+            style={{ height: NAV_H }}
+          >
+            {navContent}
+          </div>
+        )}
+
+        <div
+          className={navLocked ? 'invisible' : 'bg-white'}
+          style={{ height: NAV_H }}
+        >
+          {!navLocked && navContent}
+        </div>
+
+        {/* Footer — visible in grid view only */}
+        {navLocked && activeTab === 'exhibitions' && !exhibitionId && (
+          <div className="fixed bottom-0 left-0 right-0 z-30 bg-white pb-4 pt-2 text-center pointer-events-none">
+            <p className="font-alte-haas font-bold text-[12px] tracking-wide">EDIE XU</p>
+            <p className="font-alte-haas text-[9px] tracking-widest text-neutral-500 mt-1">
+              <span>@E__XU</span>
+              <span style={{ marginLeft: '25px' }}>EDIEXXU@GMAIL.COM</span>
+            </p>
+          </div>
+        )}
+
+        <div
+          className="relative overflow-hidden"
+          style={{ height: `calc(100vh - ${NAV_H}px)` }}
+        >
+          {activeTab === 'exhibitions' && (
+            <ExhibitionsSection
+              selectedId={exhibitionId}
+              onSelectId={handleExhibitionSelect}
+              firestoreExhibitions={firestoreExhibitions}
+              scrollEnabled={navLocked}
+            />
+          )}
+          {activeTab === 'work' && <WorkSection />}
+          {activeTab === 'videos' && (
+            <div className="px-16 py-16">
+              <p className="text-xs tracking-widest text-neutral-400 font-alte-haas">VIDEO — coming soon</p>
+            </div>
+          )}
+        </div>
+
+      </main>
+    </>
+  );
+}
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.js</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
-      </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800 hover:dark:bg-opacity-30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+    <Suspense>
+      <HomeInner />
+    </Suspense>
   );
 }

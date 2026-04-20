@@ -2,32 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+@font-face {
+  font-family: 'Alte Haas Grotesk';
+  src: url('/fonts/AlteHaasGroteskRegular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+@font-face {
+  font-family: 'Alte Haas Grotesk';
+  src: url('/fonts/AlteHaasGroteskBold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
 }
 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  height: 100%;
+  overflow: hidden;
+  background: black;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+#scroll-root {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  scroll-behavior: smooth;
+}
+
+.admin-rich-text {
+  white-space: pre-wrap;
+}
+
+.admin-rich-text p,
+.rich-text-content p {
+  margin: 0 0 1rem;
+}
+
+.admin-rich-text p:last-child,
+.rich-text-content p:last-child {
+  margin-bottom: 0;
+}
+
+.admin-rich-text ul,
+.admin-rich-text ol,
+.rich-text-content ul,
+.rich-text-content ol {
+  margin: 0 0 1rem 1.25rem;
+}
+
+.admin-rich-text blockquote,
+.rich-text-content blockquote {
+  margin: 0 0 1rem;
+  padding-left: 1rem;
+  border-left: 1px solid rgba(120, 113, 108, 0.35);
+  color: rgb(87 83 78);
+}
+
+.rich-text-content {
+  line-height: 1.8;
 }
