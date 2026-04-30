@@ -520,12 +520,13 @@ function WorkForm({
 }: {
   initial?: Omit<Work, 'id'>;
   editingId?: string;
-  onSaved: () => void;
+  onSaved: () => void | Promise<void>;
   onCancel?: () => void;
 }) {
   const [form, setForm] = useState<Omit<Work, 'id'>>(initial ?? emptyWork());
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const dragIndex = useRef<number | null>(null);
@@ -568,6 +569,7 @@ function WorkForm({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setSaveError(null);
     try {
       const url = editingId ? `/api/works/${editingId}` : '/api/works';
       const method = editingId ? 'PUT' : 'POST';
@@ -576,10 +578,14 @@ function WorkForm({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) throw new Error('Save failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error ?? `Save failed (${res.status})`);
+      }
       if (!editingId) setForm(emptyWork());
-      onSaved();
-      onCancel?.();
+      await onSaved();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setSaving(false);
     }
@@ -671,7 +677,22 @@ function WorkForm({
                       Video asset
                     </div>
                   )}
-                  <div className="mt-3 flex items-center justify-between text-xs text-stone-400">
+                  <div className="mt-3">
+                    <input
+                      type="text"
+                      placeholder="Caption (optional)"
+                      value={m.caption ?? ''}
+                      onChange={(e) => {
+                        setForm((prev) => {
+                          const next = [...prev.media];
+                          next[i] = { ...next[i], caption: e.target.value };
+                          return { ...prev, media: next };
+                        });
+                      }}
+                      className="w-full rounded-xl border border-stone-200/80 bg-white/80 px-3 py-2 text-xs text-stone-700 outline-none transition focus:border-stone-400"
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-xs text-stone-400">
                     <span>{m.type}</span>
                     <button
                       type="button"
@@ -690,6 +711,12 @@ function WorkForm({
             </p>
           )}
         </section>
+
+        {saveError && (
+          <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+            {saveError}
+          </p>
+        )}
 
         <button
           type="submit"
@@ -1278,7 +1305,7 @@ export default function DashboardPage() {
                   key={editingWork?.id ?? 'new-work'}
                   initial={workInitial}
                   editingId={editingWork?.id}
-                  onSaved={() => { loadWorks(); closeForm(); }}
+                  onSaved={async () => { await loadWorks(); closeForm(); }}
                   onCancel={closeForm}
                 />
               )}

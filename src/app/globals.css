@@ -68,3 +68,6 @@ body {
 .rich-text-content {
   line-height: 1.8;
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -5,8 +5,9 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import VideoBackground from '@/components/VideoBackground';
 import ExhibitionsSection from '@/components/ExhibitionsSection';
 import WorkSection from '@/components/WorkSection';
+import VideoSection from '@/components/VideoSection';
 
-const NAV_H = 108;
+const NAV_H = 56;
 
 function HomeInner() {
   const mainRef = useRef(null);
@@ -19,12 +20,17 @@ function HomeInner() {
 
   const [navLocked, setNavLocked] = useState(false);
   const [firestoreExhibitions, setFirestoreExhibitions] = useState([]);
+  const [firestoreWorks, setFirestoreWorks] = useState([]);
   const [emailCopied, setEmailCopied] = useState(false);
 
   useEffect(() => {
     fetch('/api/exhibitions')
       .then((r) => r.ok ? r.json() : [])
       .then(setFirestoreExhibitions)
+      .catch(() => {});
+    fetch('/api/works')
+      .then((r) => r.ok ? r.json() : [])
+      .then(setFirestoreWorks)
       .catch(() => {});
   }, []);
 
@@ -47,16 +53,16 @@ function HomeInner() {
   function handleTabClick(tab) {
     if (activeTab === tab) return;
     mainRef.current?.scrollIntoView({ behavior: 'smooth' });
-    router.replace(`/?tab=${tab}`, { scroll: false });
+    router.push(`/?tab=${tab}`, { scroll: false });
   }
 
   function handleExhibitionSelect(id) {
-    router.replace(`/?tab=exhibitions&exhibition=${id}`, { scroll: false });
+    router.push(`/?tab=exhibitions&exhibition=${id}`, { scroll: false });
   }
 
   function handleIndexClick() {
     mainRef.current?.scrollIntoView({ behavior: 'smooth' });
-    router.replace(`/?tab=exhibitions`, { scroll: false });
+    router.push(`/?tab=exhibitions`, { scroll: false });
   }
 
   function handleCopyEmail() {
@@ -69,56 +75,59 @@ function HomeInner() {
   }
 
   const navContent = (
-    <div className="text-center py-7 font-alte-haas font-bold text-[12px] tracking-wide">
-      <div className="mb-1 flex justify-center gap-5">
-        <span
-          onClick={handleIndexClick}
-          className="cursor-pointer hover:opacity-50 transition-opacity"
-        >
-          INDEX
-        </span>
-        <a
-          href="https://edie-xu-portfolio.s3.us-east-2.amazonaws.com/assets/Edie+X+Resume-1.pdf"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="cursor-pointer hover:opacity-50 transition-opacity"
-        >
-          CV
-        </a>
+    <div className="h-full flex items-center justify-center font-alte-haas text-[12px] tracking-wide gap-6">
+      <button
+        onClick={() => handleTabClick('exhibitions')}
+        className={`hover:opacity-50 transition-opacity ${activeTab === 'exhibitions' ? 'font-bold' : 'font-normal'}`}
+      >
+        Exhibition
+      </button>
+      <button
+        onClick={() => handleTabClick('work')}
+        className={`hover:opacity-50 transition-opacity ${activeTab === 'work' ? 'font-bold' : 'font-normal'}`}
+      >
+        Works
+      </button>
+      <button
+        onClick={() => handleTabClick('videos')}
+        className={`hover:opacity-50 transition-opacity ${activeTab === 'videos' ? 'font-bold' : 'font-normal'}`}
+      >
+        Video
+      </button>
+      <a
+        href="https://edie-xu-portfolio.s3.us-east-2.amazonaws.com/assets/Edie+X+Resume-1.pdf"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-normal hover:opacity-50 transition-opacity"
+      >
+        CV
+      </a>
+    </div>
+  );
+
+  const footer = navLocked && !exhibitionId && (
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-white flex items-center justify-between px-6 py-3 font-alte-haas text-[11px] tracking-wide">
+      <span
+        className="font-bold cursor-pointer hover:opacity-50 transition-opacity"
+        onClick={handleIndexClick}
+      >
+        EDIE XU
+      </span>
+      <div className="flex gap-5 text-neutral-400">
         <span
           onClick={handleCopyEmail}
-          className="cursor-pointer hover:opacity-50 transition-opacity"
+          className="cursor-pointer hover:text-black transition-colors"
         >
-          {emailCopied ? 'EMAIL COPIED :)' : 'EMAIL'}
+          {emailCopied ? 'COPIED :)' : 'EMAIL'}
         </span>
         <a
           href="https://www.instagram.com/e__xu/"
           target="_blank"
           rel="noopener noreferrer"
-          className="cursor-pointer hover:opacity-50 transition-opacity"
+          className="hover:text-black transition-colors"
         >
           INSTAGRAM
         </a>
-        <span
-          onClick={() => handleTabClick('videos')}
-          className="cursor-pointer hover:opacity-50 transition-opacity"
-        >
-          VIDEO
-        </span>
-      </div>
-      <div className="flex justify-center gap-5">
-        <button
-          onClick={() => handleTabClick('exhibitions')}
-          className={`cursor-pointer hover:opacity-50 transition-opacity ${activeTab === 'exhibitions' ? 'font-bold' : 'font-normal'}`}
-        >
-          Exhibition
-        </button>
-        <button
-          onClick={() => handleTabClick('work')}
-          className={`cursor-pointer hover:opacity-50 transition-opacity ${activeTab === 'work' ? 'font-bold' : 'font-normal'}`}
-        >
-          Works
-        </button>
       </div>
     </div>
   );
@@ -136,31 +145,16 @@ function HomeInner() {
       <main ref={mainRef} className="relative z-20 bg-white w-full">
 
         {navLocked && (
-          <div
-            className="fixed top-0 left-0 right-0 z-40 bg-white"
-            style={{ height: NAV_H }}
-          >
+          <div className="fixed top-0 left-0 right-0 z-40 bg-white" style={{ height: NAV_H }}>
             {navContent}
           </div>
         )}
 
-        <div
-          className={navLocked ? 'invisible' : 'bg-white'}
-          style={{ height: NAV_H }}
-        >
+        <div className={navLocked ? 'invisible' : 'bg-white'} style={{ height: NAV_H }}>
           {!navLocked && navContent}
         </div>
 
-        {/* Footer — visible in grid view only */}
-        {navLocked && activeTab === 'exhibitions' && !exhibitionId && (
-          <div className="fixed bottom-0 left-0 right-0 z-30 bg-white pb-4 pt-2 text-center pointer-events-none">
-            <p className="font-alte-haas font-bold text-[12px] tracking-wide">EDIE XU</p>
-            <p className="font-alte-haas text-[9px] tracking-widest text-neutral-500 mt-1">
-              <span>@E__XU</span>
-              <span style={{ marginLeft: '25px' }}>EDIEXXU@GMAIL.COM</span>
-            </p>
-          </div>
-        )}
+        {footer}
 
         <div
           className="relative overflow-hidden"
@@ -174,12 +168,8 @@ function HomeInner() {
               scrollEnabled={navLocked}
             />
           )}
-          {activeTab === 'work' && <WorkSection />}
-          {activeTab === 'videos' && (
-            <div className="px-16 py-16">
-              <p className="text-xs tracking-widest text-neutral-400 font-alte-haas">VIDEO — coming soon</p>
-            </div>
-          )}
+          {activeTab === 'work' && <WorkSection firestoreWorks={firestoreWorks} />}
+          {activeTab === 'videos' && <VideoSection />}
         </div>
 
       </main>

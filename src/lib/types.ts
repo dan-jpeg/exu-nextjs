@@ -1,6 +1,7 @@
 export interface MediaItem {
   type: 'image' | 'video';
   url: string;
+  caption?: string;
 }
 
 export interface Work {

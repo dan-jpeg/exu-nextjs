@@ -16,11 +16,18 @@ function getPreviewImages(ex) {
   return [];
 }
 
+function splitTitle(title) {
+  const words = title.split(' ');
+  if (words.length <= 1) return [title, ''];
+  const mid = Math.ceil(words.length / 2);
+  return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
+}
+
 function ExhibitionGridCell({ ex, onClick }) {
   const images = getPreviewImages(ex);
   const [imgIdx, setImgIdx] = useState(Math.min(1, images.length - 1));
-  const year = ex.date?.slice(0, 4) ?? '';
   const currentImg = images[imgIdx] ?? images[0];
+  const [line1, line2] = splitTitle(ex.title);
 
   const handleMouseEnter = () => {
     if (images.length > 1) {
@@ -34,9 +41,9 @@ function ExhibitionGridCell({ ex, onClick }) {
       className="cursor-pointer flex flex-col"
       onMouseEnter={handleMouseEnter}
     >
-      <div className="flex uppercase font-alte-haas font-bold  justify-between  items-center w-full mb-3 leading-tight">
-        <span className="max-w-[70%] hover:opacity-20 transition-opacity text-[11px]">{ex.title}</span>
-        <span className="text-[11px]">{year}</span>
+      <div className="flex justify-between uppercase font-alte-haas font-bold w-full mb-3 leading-tight hover:opacity-20 transition-opacity text-[11px]">
+        <span>{line1}</span>
+        {line2 && <span>{line2}</span>}
       </div>
       {currentImg && (
         <div className="w-full flex justify-center pt-2">
