@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { selectedWorks } from '@/data';
 
 // 0 = captions always visible under each photo
@@ -11,6 +11,22 @@ export default function WorkSection({ firestoreWorks = [] }) {
   const [hoveredWork, setHoveredWork] = useState(null);
   const [pinnedWork, setPinnedWork] = useState(null);
   const [hoveredImageIdx, setHoveredImageIdx] = useState(null);
+  const [lightbox, setLightbox] = useState(null); // { image, work }
+  const stripRef = useRef(null);
+
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (el.scrollLeft === 0 && delta < 0) return; // at start, scrolling back — let page scroll
+      e.preventDefault();
+      e.stopPropagation();
+      el.scrollLeft += delta;
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   const seenWorkIds = new Set(firestoreWorks.map((w) => w.id));
   const allWorks = [
@@ -22,63 +38,88 @@ export default function WorkSection({ firestoreWorks = [] }) {
   const images = displayWork?.media?.filter((m) => m.type === 'image') ?? [];
 
   return (
-    <div className="h-full flex" style={{ paddingTop: '180px' }}>
+    <div className="h-full relative" style={{ paddingTop: '180px' }}>
 
-      {/* Left: flat title list */}
-      <aside className="w-44 shrink-0 px-6 overflow-y-auto no-scrollbar flex flex-col gap-3">
+      {/* Full-width photo strip */}
+      <div ref={stripRef} className="overflow-x-auto overflow-y-hidden no-scrollbar" style={{ height: '60vh' }}>
+        <div className="flex gap-2 h-full items-stretch">
+          {images.map((m, i) => {
+            const showCaption =
+              m.caption &&
+              (CAPTION_VISIBILITY === 0 || hoveredImageIdx === i);
+            return (
+              <div
+                key={i}
+                className="flex flex-col shrink-0 h-full"
+                style={i === 0 ? { paddingLeft: '20vw' } : undefined}
+                onMouseEnter={() => setHoveredImageIdx(i)}
+                onMouseLeave={() => setHoveredImageIdx(null)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={m.url}
+                  alt=""
+                  className="w-auto object-cover cursor-pointer"
+                  style={{ height: 'calc(60vh - 3rem)' }}
+                  onClick={() => setLightbox({ image: m, work: displayWork })}
+                />
+                <div className="h-10 mt-2 max-w-[240px]">
+                  {showCaption && (
+                    <p className="font-alte-haas text-[11px] text-neutral-500 leading-relaxed">
+                      {m.caption}
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
+          onClick={() => setLightbox(null)}
+        >
+          <div className="flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightbox.image.url}
+              alt=""
+              className="max-h-[80vh] max-w-[90vw] w-auto object-contain"
+            />
+            {(lightbox.image.caption || lightbox.work?.title) && (
+              <div className="mt-3 text-center">
+                {lightbox.image.caption && (
+                  <p className="font-alte-haas text-[11px] text-neutral-500">{lightbox.image.caption}</p>
+                )}
+                {lightbox.work?.title && (
+                  <p className="font-alte-haas text-[11px] text-neutral-400 uppercase mt-0.5">{lightbox.work.title}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Left sidebar overlaid on top of photo strip */}
+      <aside className="absolute top-[180px] left-0 w-44 px-6 overflow-y-auto no-scrollbar flex flex-col gap-3 z-10" style={{ height: '60vh', mixBlendMode: 'difference' }}>
         {allWorks.map((work) => (
           <span
             key={work.id}
             onMouseEnter={() => setHoveredWork(work)}
             onMouseLeave={() => setHoveredWork(null)}
             onClick={() => setPinnedWork(pinnedWork?.id === work.id ? null : work)}
-            className={`font-alte-haas text-[11px] uppercase cursor-pointer leading-tight transition-colors ${
-              displayWork?.id === work.id
-                ? 'text-black font-bold'
-                : 'text-neutral-400 hover:text-black'
+            className={`font-alte-haas text-[11px] uppercase cursor-pointer leading-tight text-white/95 ${
+              work.id === displayWork?.id ? 'underline underline-offset-3' : ''
             }`}
           >
             {work.title}
           </span>
         ))}
       </aside>
-
-      {/* Right: photo strip with per-image captions */}
-      <div className="flex-1 flex flex-col overflow-hidden pr-6">
-        <div className="overflow-x-auto overflow-y-hidden no-scrollbar shrink-0" style={{ height: '60vh' }}>
-          <div className="flex gap-2 h-full items-stretch">
-            {images.map((m, i) => {
-              const showCaption =
-                m.caption &&
-                (CAPTION_VISIBILITY === 0 || hoveredImageIdx === i);
-              return (
-                <div
-                  key={i}
-                  className="flex flex-col shrink-0 h-full"
-                  style={i === 0 ? { paddingLeft: '120px' } : undefined}
-                  onMouseEnter={() => setHoveredImageIdx(i)}
-                  onMouseLeave={() => setHoveredImageIdx(null)}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={m.url}
-                    alt=""
-                    className="w-auto object-cover"
-                    style={{ height: 'calc(60vh - 3rem)' }}
-                  />
-                  <div className="h-10 mt-2 max-w-[240px]">
-                    {showCaption && (
-                      <p className="font-alte-haas text-[11px] text-neutral-500 leading-relaxed">
-                        {m.caption}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
 
     </div>
   );
