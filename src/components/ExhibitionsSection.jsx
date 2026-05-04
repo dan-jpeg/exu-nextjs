@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Image from 'next/image';
-import { getContentItems } from '@/lib/types';
+import { getContentItems, blockFontFamilies } from '@/lib/types';
 import { exhibitions2 } from '@/data';
 import RichTextContent from '@/components/RichTextContent';
 
@@ -16,18 +16,10 @@ function getPreviewImages(ex) {
   return [];
 }
 
-function splitTitle(title) {
-  const words = title.split(' ');
-  if (words.length <= 1) return [title, ''];
-  const mid = Math.ceil(words.length / 2);
-  return [words.slice(0, mid).join(' '), words.slice(mid).join(' ')];
-}
-
 function ExhibitionGridCell({ ex, onClick }) {
   const images = getPreviewImages(ex);
   const [imgIdx, setImgIdx] = useState(Math.min(1, images.length - 1));
   const currentImg = images[imgIdx] ?? images[0];
-  const [line1, line2] = splitTitle(ex.title);
 
   const handleMouseEnter = () => {
     if (images.length > 1) {
@@ -38,20 +30,20 @@ function ExhibitionGridCell({ ex, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer flex flex-col"
+      className="cursor-pointer flex flex-col w-1/2 max-w-[250px] md:w-auto md:max-w-none"
       onMouseEnter={handleMouseEnter}
     >
-      <div className="flex justify-between uppercase font-alte-haas font-bold w-full mb-3 leading-tight hover:opacity-20 transition-opacity text-[11px]">
-        <span>{line1}</span>
-        {line2 && <span>{line2}</span>}
+      <div className="flex justify-between uppercase font-alte-haas font-bold w-full mb-1 md:mb-3 leading-tight hover:opacity-20 transition-opacity text-[9px] lg:text-[11px]">
+        <span>{ex.title}</span>
+        <span>{ex.year ?? (ex.date ? ex.date.match(/\d{4}/)?.[0] : null)}</span>
       </div>
       {currentImg && (
-        <div className="w-full flex justify-center pt-2">
+        <div className="w-full flex justify-center md:pt-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentImg}
             alt={ex.title}
-            className="h-[5vw] w-auto object-cover"
+            className="h-[120px] md:h-[5vw] w-auto object-cover"
           />
         </div>
       )}
@@ -77,7 +69,14 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
   const allExhibitions = [
     ...firestoreExhibitions,
     ...exhibitions2.filter((e) => !seenIds.has(e.id)),
-  ];
+  ].sort((a, b) => {
+    const yearOf = (e) => {
+      const raw = e.date ?? e.year ?? '';
+      const match = String(raw).match(/\d{4}/);
+      return match ? Number(match[0]) : -Infinity;
+    };
+    return yearOf(b) - yearOf(a);
+  });
 
   const selected = selectedId ? allExhibitions.find((e) => e.id === selectedId) : null;
   const contentItems = selected ? getContentItems(selected) : [];
@@ -93,8 +92,8 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
   // Grid view — no exhibition selected
   if (!selected) {
     return (
-      <div className={`h-full ${scrollEnabled ? 'overflow-y-auto' : 'overflow-hidden'} px-8 pt-8`}>
-        <div className="grid grid-cols-6 gap-[4vw]">
+      <div className="px-4 pt-8 md:px-8">
+        <div className="flex flex-col items-center space-y-8 pb-40 md:grid md:grid-cols-6 md:gap-[4vw] md:space-y-0 md:items-stretch md:pb-0">
           {allExhibitions.map((ex) => (
             <ExhibitionGridCell
               key={ex.id}
@@ -115,7 +114,24 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
         ref={centerRef}
         className={`h-full ${scrollEnabled ? 'overflow-y-auto' : 'overflow-hidden'}`}
       >
-        <div key={selected.id} className="max-w-xl mx-auto py-10 px-6">
+        <div key={selected.id} className="max-w-xl justify-center items-center text-center font-serif pt-40 text-[11px] mx-auto py-10 px-6">
+          <header className="exhibition-info mb-8">
+            {selected.title && (
+              <h1 className="exhibition-info__title uppercase mb-2">{selected.title}</h1>
+            )}
+
+            <div className="exhibition-info__meta flex flex-col ">
+
+              {selected.location && (
+                <span className="exhibition-info__location">{selected.location}</span>
+              )}
+              {(selected.date || selected.year) && (
+                <span className="exhibition-info__date">{selected.date ?? selected.year}</span>
+              )}
+
+            </div>
+          </header>
+
           {contentItems.map((item) => (
             <div
               key={item.id}
@@ -156,6 +172,8 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
                     fontSize: item.fontSize ? `${item.fontSize}px` : undefined,
                     marginLeft: item.marginX ? `${item.marginX}px` : undefined,
                     marginRight: item.marginX ? `${item.marginX}px` : undefined,
+                    fontFamily: item.blockFont ? blockFontFamilies[item.blockFont] : undefined,
+                    textAlign: item.textAlign ?? undefined,
                   }}
                 />
               ) : null}

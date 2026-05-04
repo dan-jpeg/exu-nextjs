@@ -37,6 +37,15 @@ export interface WorkIncluded {
   description: string;
 }
 
+export type BlockFont = 'serif' | 'sans' | 'mono';
+export type TextAlign = 'left' | 'center' | 'right' | 'justify';
+
+export const blockFontFamilies: Record<BlockFont, string> = {
+  serif: 'Georgia, "Times New Roman", serif',
+  sans: '"Alte Haas Grotesk", "Helvetica Neue", Arial, sans-serif',
+  mono: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
+};
+
 // Ordered content block — either an image (with optional caption) or a text paragraph.
 // Used in Firestore-uploaded exhibitions so the artist can freely mix and reorder.
 export interface ContentItem {
@@ -49,6 +58,8 @@ export interface ContentItem {
   marginX?: number;       // text only — horizontal inset in px
   paddingTop?: number;    // text only — custom top spacing in px
   paddingBottom?: number; // text only — custom bottom spacing in px
+  blockFont?: BlockFont;  // text only — whole-block font family
+  textAlign?: TextAlign;  // text only — whole-block text alignment
   order: number;
 }
 

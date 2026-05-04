@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import TopNav from '@/components/TopNav';
 import RichTextContent from '@/components/RichTextContent';
-import { getContentItems } from '@/lib/types';
+import { getContentItems, blockFontFamilies } from '@/lib/types';
 import type { Exhibition } from '@/lib/types';
 import { exhibitions2 } from '@/data';
 
@@ -125,6 +125,8 @@ export default function ExhibitionsPage() {
                     fontSize: item.fontSize ? `${item.fontSize}px` : undefined,
                     marginLeft: item.marginX ? `${item.marginX}px` : undefined,
                     marginRight: item.marginX ? `${item.marginX}px` : undefined,
+                    fontFamily: item.blockFont ? blockFontFamilies[item.blockFont] : undefined,
+                    textAlign: item.textAlign ?? undefined,
                   }}
                 />
               ) : null}
@@ -199,11 +201,12 @@ export default function ExhibitionsPage() {
       {/* ── Lightbox ── */}
       {lightbox && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 cursor-zoom-out"
+          className="fixed inset-0 z-50 flex items-center justify-center cursor-zoom-out"
+          style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
           onClick={closeLightbox}
         >
           <button
-            className="absolute top-4 right-5 text-white text-2xl leading-none opacity-70 hover:opacity-100 cursor-pointer"
+            className="absolute top-4 right-5 text-neutral-500 text-2xl leading-none opacity-70 hover:opacity-100 cursor-pointer"
             onClick={closeLightbox}
             aria-label="Close"
           >

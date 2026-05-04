@@ -8,7 +8,6 @@ import { selectedWorks } from '@/data';
 const CAPTION_VISIBILITY = 0;
 
 export default function WorkSection({ firestoreWorks = [] }) {
-  const [hoveredWork, setHoveredWork] = useState(null);
   const [pinnedWork, setPinnedWork] = useState(null);
   const [hoveredImageIdx, setHoveredImageIdx] = useState(null);
   const [lightbox, setLightbox] = useState(null); // { image, work }
@@ -34,7 +33,13 @@ export default function WorkSection({ firestoreWorks = [] }) {
     ...selectedWorks.filter((w) => !seenWorkIds.has(w.id)),
   ];
 
-  const displayWork = hoveredWork ?? pinnedWork;
+  // Default to first work; if Firestore loads later, keep existing selection.
+  useEffect(() => {
+    setPinnedWork((prev) => prev ?? allWorks[0] ?? null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firestoreWorks]);
+
+  const displayWork = pinnedWork;
   const images = displayWork?.media?.filter((m) => m.type === 'image') ?? [];
 
   return (
@@ -105,20 +110,24 @@ export default function WorkSection({ firestoreWorks = [] }) {
       )}
 
       {/* Left sidebar overlaid on top of photo strip */}
-      <aside className="absolute top-[180px] left-0 w-44 px-6 overflow-y-auto no-scrollbar flex flex-col gap-3 z-10" style={{ height: '60vh', mixBlendMode: 'difference' }}>
-        {allWorks.map((work) => (
-          <span
-            key={work.id}
-            onMouseEnter={() => setHoveredWork(work)}
-            onMouseLeave={() => setHoveredWork(null)}
-            onClick={() => setPinnedWork(pinnedWork?.id === work.id ? null : work)}
-            className={`font-alte-haas text-[11px] uppercase cursor-pointer leading-tight text-white/95 ${
-              work.id === displayWork?.id ? 'underline underline-offset-3' : ''
-            }`}
-          >
-            {work.title}
-          </span>
-        ))}
+      <aside
+        className="absolute top-[180px] left-0 w-44 pl-8 pr-4 overflow-y-auto no-scrollbar z-10 uppercase pt-2"
+        style={{ height: '60vh', fontFamily: '"Times New Roman", serif', color: 'rgb(102,102,102)' }}
+      >
+        <h3 className="text-xs italic my-3">WORKS</h3>
+        <ul className="pl-6 transition-all duration-300 ease-in-out">
+          {allWorks.map((work) => (
+            <li
+              key={work.id}
+              onClick={() => setPinnedWork(pinnedWork?.id === work.id ? null : work)}
+              className={`text-xs cursor-pointer hover:underline m-0 p-0 leading-tight ${
+                work.id === displayWork?.id ? 'underline underline-offset-2' : ''
+              }`}
+            >
+              {work.title}
+            </li>
+          ))}
+        </ul>
       </aside>
 
     </div>

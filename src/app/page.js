@@ -7,7 +7,7 @@ import ExhibitionsSection from '@/components/ExhibitionsSection';
 import WorkSection from '@/components/WorkSection';
 import VideoSection from '@/components/VideoSection';
 
-const NAV_H = 56;
+const NAV_H = 32;
 
 function HomeInner() {
   const mainRef = useRef(null);
@@ -19,6 +19,8 @@ function HomeInner() {
   const exhibitionId = searchParams.get('exhibition') || null;
 
   const [navLocked, setNavLocked] = useState(false);
+  const [navVisible, setNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
   const [firestoreExhibitions, setFirestoreExhibitions] = useState([]);
   const [firestoreWorks, setFirestoreWorks] = useState([]);
   const [emailCopied, setEmailCopied] = useState(false);
@@ -42,17 +44,32 @@ function HomeInner() {
       const heroBottom = heroRef.current
         ? heroRef.current.getBoundingClientRect().bottom
         : 0;
-      setNavLocked(heroBottom <= 0);
+      const locked = heroBottom <= 0;
+      setNavLocked(locked);
+
+      const currentY = scrollRoot.scrollTop;
+      if (activeTab === 'exhibitions' && exhibitionId && locked) {
+        const delta = currentY - lastScrollY.current;
+        if (delta > 5) setNavVisible(false);
+        else if (delta < -5) setNavVisible(true);
+      } else {
+        setNavVisible(true);
+      }
+      lastScrollY.current = currentY;
     };
 
     scrollRoot.addEventListener('scroll', check, { passive: true });
     check();
     return () => scrollRoot.removeEventListener('scroll', check);
-  }, []);
+  }, [activeTab, exhibitionId]);
 
   function handleTabClick(tab) {
-    if (activeTab === tab) return;
     mainRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (tab === 'exhibitions') {
+      router.push('/?tab=exhibitions', { scroll: false });
+      return;
+    }
+    if (activeTab === tab) return;
     router.push(`/?tab=${tab}`, { scroll: false });
   }
 
@@ -136,16 +153,22 @@ function HomeInner() {
     <>
       <VideoBackground />
 
-      <span className="fixed top-6 left-6 z-10 text-white text-xs pointer-events-none select-none font-alte-haas font-bold">
+      <span className="fixed top-6 left-1/2 -translate-x-1/2 z-10 text-white text-xs pointer-events-none select-none font-alte-haas font-bold">
         EDIE XU
       </span>
 
-      <div ref={heroRef} style={{ height: `calc(100vh - ${NAV_H + 17}px)` }} />
+      <div ref={heroRef} style={{ height: `calc(100vh - ${NAV_H + 0}px)` }} />
 
       <main ref={mainRef} className="relative z-20 bg-white w-full">
 
         {navLocked && (
-          <div className="fixed top-0 left-0 right-0 z-40 bg-white" style={{ height: NAV_H }}>
+          <div
+            className="fixed top-0 left-0 right-0 z-40 bg-white transition-transform duration-300 ease-out"
+            style={{
+              height: NAV_H,
+              transform: navVisible ? 'translateY(0)' : `translateY(-${NAV_H}px)`,
+            }}
+          >
             {navContent}
           </div>
         )}
@@ -156,21 +179,24 @@ function HomeInner() {
 
         {footer}
 
-        <div
-          className="relative overflow-hidden"
-          style={{ height: `calc(100vh - ${NAV_H}px)` }}
-        >
-          {activeTab === 'exhibitions' && (
+        {activeTab === 'exhibitions' ? (
+          <div className="relative" style={{ minHeight: `calc(100vh - ${NAV_H}px)` }}>
             <ExhibitionsSection
               selectedId={exhibitionId}
               onSelectId={handleExhibitionSelect}
               firestoreExhibitions={firestoreExhibitions}
               scrollEnabled={navLocked}
             />
-          )}
-          {activeTab === 'work' && <WorkSection firestoreWorks={firestoreWorks} />}
-          {activeTab === 'videos' && <VideoSection />}
-        </div>
+          </div>
+        ) : (
+          <div
+            className="relative overflow-hidden"
+            style={{ height: `calc(100vh - ${NAV_H}px)` }}
+          >
+            {activeTab === 'work' && <WorkSection firestoreWorks={firestoreWorks} />}
+            {activeTab === 'videos' && <VideoSection />}
+          </div>
+        )}
 
       </main>
     </>

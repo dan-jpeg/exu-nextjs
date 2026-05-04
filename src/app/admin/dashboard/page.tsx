@@ -5,16 +5,13 @@ import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import SiloHoverButton from '@/components/admin/SiloHoverButton';
-import type { Work, Video, Exhibition, MediaItem, WorkIncluded, ContentItem } from '@/lib/types';
+import type { Work, Video, Exhibition, MediaItem, WorkIncluded, ContentItem, BlockFont, TextAlign } from '@/lib/types';
+import { blockFontFamilies } from '@/lib/types';
 
 type Tab = 'works' | 'videos' | 'exhibitions';
-type FontPreset = 'serif' | 'sans' | 'mono';
+type FontPreset = BlockFont;
 
-const fontFamilies: Record<FontPreset, string> = {
-  serif: 'Georgia, "Times New Roman", serif',
-  sans: '"Alte Haas Grotesk", "Helvetica Neue", Arial, sans-serif',
-  mono: '"SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace',
-};
+const fontFamilies = blockFontFamilies;
 
 const surfaceInputClass =
   'w-full rounded-2xl border border-stone-200/80 bg-white/80 px-4 py-3 text-sm text-stone-800 shadow-[0_1px_0_rgba(255,255,255,0.7)_inset] outline-none transition focus:border-stone-500 focus:bg-white focus:ring-4 focus:ring-stone-200/60';
@@ -90,6 +87,8 @@ function RichTextEditor({
   minHeight = 160,
   blockFontSize,
   onBlockFontSizeChange,
+  blockFont,
+  textAlign,
 }: {
   label: string;
   value: string;
@@ -98,9 +97,15 @@ function RichTextEditor({
   minHeight?: number;
   blockFontSize?: number;
   onBlockFontSizeChange?: (value: number) => void;
+  blockFont?: FontPreset;
+  textAlign?: TextAlign;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
-  const [activeFont, setActiveFont] = useState<FontPreset>('serif');
+  const [activeFont, setActiveFont] = useState<FontPreset>(blockFont ?? 'serif');
+
+  useEffect(() => {
+    if (blockFont) setActiveFont(blockFont);
+  }, [blockFont]);
   const fontSizeOptions = [12, 14, 16, 18, 20, 24];
 
   useEffect(() => {
@@ -217,7 +222,7 @@ function RichTextEditor({
           data-placeholder={placeholder}
           onInput={(e) => onChange((e.currentTarget as HTMLDivElement).innerHTML)}
           className="admin-rich-text min-h-[160px] px-4 py-4 text-sm leading-7 text-stone-800 outline-none empty:before:pointer-events-none empty:before:text-stone-300 empty:before:content-[attr(data-placeholder)]"
-          style={{ minHeight, fontFamily: fontFamilies[activeFont], fontSize: blockFontSize ? `${blockFontSize}px` : undefined }}
+          style={{ minHeight, fontFamily: fontFamilies[activeFont], fontSize: blockFontSize ? `${blockFontSize}px` : undefined, textAlign: textAlign ?? undefined }}
         />
       </div>
     </div>
@@ -267,12 +272,48 @@ function LayoutGuide({
 
 // ── Upload helper ────────────────────────────────────────────────────────────
 
-async function uploadFile(file: File): Promise<string> {
-  const fd = new FormData();
-  fd.append('file', file);
-  const res = await fetch('/api/upload', { method: 'POST', body: fd });
-  if (!res.ok) throw new Error('Upload failed');
-  return (await res.json()).url;
+function uploadFileWithProgress(file: File, onProgress: (pct: number) => void): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const fd = new FormData();
+    fd.append('file', file);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText).url);
+      } else {
+        reject(new Error('Upload failed'));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Upload failed'));
+    xhr.open('POST', '/api/upload');
+    xhr.send(fd);
+  });
+}
+
+type UploadProgress = { current: number; total: number; pct: number } | null;
+
+function UploadProgressBar({ progress }: { progress: UploadProgress }) {
+  if (!progress) return null;
+  const overall = ((progress.current - 1 + progress.pct / 100) / progress.total) * 100;
+  return (
+    <div className="mt-3 flex flex-col gap-1.5">
+      <div className="flex items-center justify-between text-[11px] text-stone-400">
+        <span className="uppercase tracking-[0.18em]">
+          Uploading {progress.current} of {progress.total}
+        </span>
+        <span>{Math.round(overall)}%</span>
+      </div>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-stone-100">
+        <div
+          className="h-full rounded-full bg-stone-400 transition-all duration-150"
+          style={{ width: `${overall}%` }}
+        />
+      </div>
+    </div>
+  );
 }
 
 function newContentItemId() {
@@ -289,7 +330,7 @@ function ContentItemEditor({
   onChange: (items: ContentItem[]) => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>(null);
 
   function move(index: number, dir: -1 | 1) {
     const next = index + dir;
@@ -305,7 +346,7 @@ function ContentItemEditor({
     );
   }
 
-  function updateField(index: number, field: keyof ContentItem, value: string | number) {
+  function updateField(index: number, field: keyof ContentItem, value: string | number | BlockFont | TextAlign) {
     const updated = [...items];
     updated[index] = { ...updated[index], [field]: value };
     onChange(updated);
@@ -314,20 +355,18 @@ function ContentItemEditor({
   async function handleImageUpload(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    setUploading(true);
+    const uploaded: ContentItem[] = [];
     try {
-      const uploaded: ContentItem[] = await Promise.all(
-        files.map(async (f) => ({
-          id: newContentItemId(),
-          type: 'image' as const,
-          url: await uploadFile(f),
-          caption: '',
-          order: items.length,
-        }))
-      );
-      onChange([...items, ...uploaded].map((item, i) => ({ ...item, order: i })));
+      for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length, pct: 0 });
+        const url = await uploadFileWithProgress(files[i], (pct) =>
+          setUploadProgress({ current: i + 1, total: files.length, pct })
+        );
+        uploaded.push({ id: newContentItemId(), type: 'image', url, caption: '', order: items.length + i });
+      }
+      onChange([...items, ...uploaded].map((item, idx) => ({ ...item, order: idx })));
     } finally {
-      setUploading(false);
+      setUploadProgress(null);
       if (fileRef.current) fileRef.current.value = '';
     }
   }
@@ -343,6 +382,8 @@ function ContentItemEditor({
         marginX: 0,
         paddingTop: 0,
         paddingBottom: 0,
+        blockFont: 'serif',
+        textAlign: 'left',
         order: items.length,
       },
     ]);
@@ -373,8 +414,8 @@ function ContentItemEditor({
           className="hidden"
           onChange={handleImageUpload}
         />
-        {uploading && <span className="text-xs text-stone-400">Uploading media...</span>}
       </div>
+      <UploadProgressBar progress={uploadProgress} />
 
       {items.length === 0 && (
         <p className="rounded-2xl border border-dashed border-stone-200 px-4 py-8 text-center text-sm text-stone-400">
@@ -440,7 +481,37 @@ function ContentItemEditor({
                     minHeight={180}
                     blockFontSize={item.fontSize ?? 14}
                     onBlockFontSizeChange={(nextValue) => updateField(i, 'fontSize', nextValue)}
+                    blockFont={item.blockFont ?? 'serif'}
+                    textAlign={item.textAlign ?? 'left'}
                   />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="flex items-center gap-2 rounded-2xl border border-stone-200/80 bg-stone-50/70 px-4 py-3">
+                      <span className="text-[11px] uppercase tracking-[0.2em] text-stone-500 mr-auto">Font</span>
+                      {(['serif', 'sans', 'mono'] as FontPreset[]).map((f) => (
+                        <button
+                          key={f}
+                          type="button"
+                          onClick={() => updateField(i, 'blockFont', f)}
+                          className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em] transition ${(item.blockFont ?? 'serif') === f ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200 hover:text-stone-800'}`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 rounded-2xl border border-stone-200/80 bg-stone-50/70 px-4 py-3">
+                      <span className="text-[11px] uppercase tracking-[0.2em] text-stone-500 mr-auto">Align</span>
+                      {(['left', 'center', 'right', 'justify'] as TextAlign[]).map((a) => (
+                        <button
+                          key={a}
+                          type="button"
+                          onClick={() => updateField(i, 'textAlign', a)}
+                          className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em] transition ${(item.textAlign ?? 'left') === a ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200 hover:text-stone-800'}`}
+                        >
+                          {a}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="grid gap-3 md:grid-cols-3">
                     <label className="flex items-center justify-between gap-3 rounded-2xl border border-stone-200/80 bg-stone-50/70 px-4 py-3 text-xs text-stone-500">
                       <span className="uppercase tracking-[0.2em]">Horizontal margin</span>
@@ -524,7 +595,7 @@ function WorkForm({
   onCancel?: () => void;
 }) {
   const [form, setForm] = useState<Omit<Work, 'id'>>(initial ?? emptyWork());
-  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
@@ -538,17 +609,18 @@ function WorkForm({
   async function handleMediaUpload(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    setUploading(true);
+    const uploaded: MediaItem[] = [];
     try {
-      const uploaded: MediaItem[] = await Promise.all(
-        files.map(async (f) => ({
-          type: f.type.startsWith('video') ? ('video' as const) : ('image' as const),
-          url: await uploadFile(f),
-        }))
-      );
+      for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length, pct: 0 });
+        const url = await uploadFileWithProgress(files[i], (pct) =>
+          setUploadProgress({ current: i + 1, total: files.length, pct })
+        );
+        uploaded.push({ type: files[i].type.startsWith('video') ? 'video' : 'image', url });
+      }
       setForm((prev) => ({ ...prev, media: [...prev.media, ...uploaded] }));
     } finally {
-      setUploading(false);
+      setUploadProgress(null);
       if (fileRef.current) fileRef.current.value = '';
     }
   }
@@ -642,7 +714,7 @@ function WorkForm({
             className="hidden"
             onChange={handleMediaUpload}
           />
-          {uploading ? <p className="mt-3 text-sm text-stone-400">Uploading media...</p> : null}
+          <UploadProgressBar progress={uploadProgress} />
           {form.media.length > 0 ? (
             <ul className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {form.media.map((m, i) => (
@@ -720,7 +792,7 @@ function WorkForm({
 
         <button
           type="submit"
-          disabled={saving || uploading}
+          disabled={saving || !!uploadProgress}
           className="self-start rounded-full bg-stone-900 px-6 py-3 text-xs uppercase tracking-[0.24em] text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? 'Saving...' : editingId ? 'Update work' : 'Save work'}
@@ -753,7 +825,7 @@ function VideoForm({
   onCancel?: () => void;
 }) {
   const [form, setForm] = useState<Omit<Video, 'id'>>(initial ?? emptyVideo());
-  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>(null);
   const [saving, setSaving] = useState(false);
 
   function set(field: string, value: string) {
@@ -761,12 +833,14 @@ function VideoForm({
   }
 
   async function handleFileUpload(field: 'videoUrl' | 'thumbnail', file: File) {
-    setUploading(true);
+    setUploadProgress({ current: 1, total: 1, pct: 0 });
     try {
-      const url = await uploadFile(file);
+      const url = await uploadFileWithProgress(file, (pct) =>
+        setUploadProgress({ current: 1, total: 1, pct })
+      );
       setForm((prev) => ({ ...prev, [field]: url }));
     } finally {
-      setUploading(false);
+      setUploadProgress(null);
     }
   }
 
@@ -852,11 +926,11 @@ function VideoForm({
           </section>
         </div>
 
-        {uploading ? <p className="text-sm text-stone-400">Uploading asset...</p> : null}
+        <UploadProgressBar progress={uploadProgress} />
 
         <button
           type="submit"
-          disabled={saving || uploading}
+          disabled={saving || !!uploadProgress}
           className="self-start rounded-full bg-stone-900 px-6 py-3 text-xs uppercase tracking-[0.24em] text-white transition hover:bg-stone-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? 'Saving...' : editingId ? 'Update video' : 'Save video'}
