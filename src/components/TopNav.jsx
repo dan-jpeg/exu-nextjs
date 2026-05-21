@@ -9,8 +9,15 @@ export default function TopNav({ active }) {
   ];
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-5 bg-white border-b border-neutral-100">
-      <Link href="/" className="text-xs tracking-widest hover:opacity-50 transition-opacity">
+    <header
+      className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-5 bg-white border-b border-neutral-100 font-alte-haas uppercase"
+      style={{ color: 'rgb(102,102,102)' }}
+    >
+      <Link
+        href="/"
+        className="text-xs font-bold hover:opacity-50 transition-opacity"
+        style={{ color: 'black' }}
+      >
         EDIE XU
       </Link>
       <nav className="flex items-center gap-8">
@@ -21,7 +28,7 @@ export default function TopNav({ active }) {
             )}
             <Link
               href={item.href}
-              className={`text-xs tracking-widest transition-opacity ${
+              className={`text-xs uppercase font-bold transition-opacity ${
                 active === item.key
                   ? 'underline underline-offset-4'
                   : 'hover:opacity-50'

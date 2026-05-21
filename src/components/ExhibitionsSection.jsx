@@ -33,7 +33,10 @@ function ExhibitionGridCell({ ex, onClick }) {
       className="cursor-pointer flex flex-col w-1/2 max-w-[250px] md:w-auto md:max-w-none"
       onMouseEnter={handleMouseEnter}
     >
-      <div className="flex justify-between uppercase font-alte-haas font-bold w-full mb-1 md:mb-3 leading-tight hover:opacity-20 transition-opacity text-[9px] lg:text-[11px]">
+      <div
+        className="flex justify-between uppercase w-full mb-1 md:mb-3 leading-tight hover:opacity-50 transition-opacity text-[11px] font-alte-haas font-bold"
+        style={{ color: 'rgb(102,102,102)' }}
+      >
         <span>{ex.title}</span>
         <span>{ex.year ?? (ex.date ? ex.date.match(/\d{4}/)?.[0] : null)}</span>
       </div>
@@ -54,6 +57,7 @@ function ExhibitionGridCell({ ex, onClick }) {
 export default function ExhibitionsSection({ selectedId, onSelectId, firestoreExhibitions = [], scrollEnabled = true }) {
   const centerRef = useRef(null);
   const [lightbox, setLightbox] = useState(null);
+  const [atBottom, setAtBottom] = useState(false);
 
   const openLightbox = useCallback((url, caption) => setLightbox({ url, caption }), []);
   const closeLightbox = useCallback(() => setLightbox(null), []);
@@ -87,13 +91,45 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
 
   useEffect(() => {
     centerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+    setAtBottom(false);
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const scrollRoot = document.getElementById('scroll-root');
+    const candidates = [scrollRoot, centerRef.current].filter(Boolean);
+    if (candidates.length === 0) return;
+
+    const THRESHOLD = 24;
+    const check = () => {
+      // True only if every relevant scroller is at the bottom AND at least one
+      // of them actually has overflow (so it doesn't fire when nothing scrolls).
+      let anyScrollable = false;
+      for (const el of candidates) {
+        const overflow = el.scrollHeight - el.clientHeight;
+        if (overflow > THRESHOLD) anyScrollable = true;
+        if (overflow - el.scrollTop > THRESHOLD) {
+          setAtBottom(false);
+          return;
+        }
+      }
+      setAtBottom(anyScrollable);
+    };
+
+    check();
+    candidates.forEach((el) => el.addEventListener('scroll', check, { passive: true }));
+    window.addEventListener('resize', check);
+    return () => {
+      candidates.forEach((el) => el.removeEventListener('scroll', check));
+      window.removeEventListener('resize', check);
+    };
   }, [selected?.id]);
 
   // Grid view — no exhibition selected
   if (!selected) {
     return (
       <div className="px-4 pt-8 md:px-8">
-        <div className="flex flex-col items-center space-y-8 pb-40 md:grid md:grid-cols-6 md:gap-[4vw] md:space-y-0 md:items-stretch md:pb-0">
+        <div className="flex flex-col items-center space-y-8 pt-8 pb-40 md:grid md:grid-cols-4 md:gap-x-[3vw] md:gap-y-6 md:space-y-0 md:items-stretch md:pb-0 md:max-w-5xl md:mx-auto">
           {allExhibitions.map((ex) => (
             <ExhibitionGridCell
               key={ex.id}
@@ -188,25 +224,22 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
         </div>
       </div>
 
-      {/* Prev / Next */}
-      <div className="fixed bottom-6 right-8 z-10 flex gap-6 font-alte-haas font-bold text-[11px] tracking-wide">
-        {prevEx && (
-          <button
-            onClick={() => onSelectId(prevEx.id)}
-            className="hover:opacity-50 transition-opacity"
-          >
-            ← PREV
-          </button>
-        )}
-        {nextEx && (
+      {/* Continue — only after scrolling to the bottom */}
+      {nextEx && (
+        <div
+          className={`fixed bottom-6 left-0 right-0 z-10 flex justify-center italic text-[11px] transition-opacity duration-300 ${
+            atBottom ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+          style={{ fontFamily: '"Times New Roman", serif', color: 'rgb(102,102,102)' }}
+        >
           <button
             onClick={() => onSelectId(nextEx.id)}
             className="hover:opacity-50 transition-opacity"
           >
-            NEXT →
+            Continue
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Lightbox */}
       {lightbox && (
