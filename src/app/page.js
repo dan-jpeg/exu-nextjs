@@ -188,13 +188,16 @@ function HomeInner() {
               scrollEnabled={navLocked}
             />
           </div>
+        ) : activeTab === 'work' ? (
+          <div className="relative" style={{ minHeight: `calc(100vh - ${NAV_H}px)` }}>
+            <WorkSection firestoreWorks={firestoreWorks} />
+          </div>
         ) : (
           <div
             className="relative overflow-hidden"
             style={{ height: `calc(100vh - ${NAV_H}px)` }}
           >
-            {activeTab === 'work' && <WorkSection firestoreWorks={firestoreWorks} />}
-            {activeTab === 'videos' && <VideoSection />}
+            <VideoSection />
           </div>
         )}
 

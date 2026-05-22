@@ -54,6 +54,7 @@ function ExhibitionGridCell({ ex, onClick }) {
 export default function ExhibitionsSection({ selectedId, onSelectId, firestoreExhibitions = [], scrollEnabled = true }) {
   const centerRef = useRef(null);
   const [lightbox, setLightbox] = useState(null);
+  const [atBottom, setAtBottom] = useState(false);
 
   const openLightbox = useCallback((url, caption) => setLightbox({ url, caption }), []);
   const closeLightbox = useCallback(() => setLightbox(null), []);
@@ -87,6 +88,36 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
 
   useEffect(() => {
     centerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+    setAtBottom(false);
+  }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const scrollRoot = document.getElementById('scroll-root');
+    const candidates = [scrollRoot, centerRef.current].filter(Boolean);
+    if (candidates.length === 0) return;
+
+    const THRESHOLD = 24;
+    const check = () => {
+      let anyScrollable = false;
+      for (const el of candidates) {
+        const overflow = el.scrollHeight - el.clientHeight;
+        if (overflow > THRESHOLD) anyScrollable = true;
+        if (overflow - el.scrollTop > THRESHOLD) {
+          setAtBottom(false);
+          return;
+        }
+      }
+      setAtBottom(anyScrollable);
+    };
+
+    check();
+    candidates.forEach((el) => el.addEventListener('scroll', check, { passive: true }));
+    window.addEventListener('resize', check);
+    return () => {
+      candidates.forEach((el) => el.removeEventListener('scroll', check));
+      window.removeEventListener('resize', check);
+    };
   }, [selected?.id]);
 
   // Grid view — no exhibition selected
@@ -188,25 +219,22 @@ export default function ExhibitionsSection({ selectedId, onSelectId, firestoreEx
         </div>
       </div>
 
-      {/* Prev / Next */}
-      <div className="fixed bottom-6 right-8 z-10 flex gap-6 font-alte-haas font-bold text-[11px] tracking-wide">
-        {prevEx && (
-          <button
-            onClick={() => onSelectId(prevEx.id)}
-            className="hover:opacity-50 transition-opacity"
-          >
-            ← PREV
-          </button>
-        )}
-        {nextEx && (
+      {/* Continue — only after scrolling to the bottom */}
+      {nextEx && (
+        <div
+          className={`fixed bottom-6 left-0 right-0 z-10 flex justify-center italic text-[11px] transition-opacity duration-300 ${
+            atBottom ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+          style={{ fontFamily: '"Times New Roman", serif', color: 'rgb(102,102,102)' }}
+        >
           <button
             onClick={() => onSelectId(nextEx.id)}
             className="hover:opacity-50 transition-opacity"
           >
-            NEXT →
+            Continue
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Lightbox */}
       {lightbox && (

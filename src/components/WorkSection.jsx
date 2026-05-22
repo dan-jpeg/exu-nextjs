@@ -1,94 +1,46 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { selectedWorks } from '@/data';
 
-// 0 = captions always visible under each photo
-// 1 = captions only appear when hovering the photo
-const CAPTION_VISIBILITY = 0;
+const ROW_MAX_WIDTH = 833;
+const ROW_HEIGHT = 412;
+const ROW_GAP = 7;
+const ROW_PADDING = 42;
 
 export default function WorkSection({ firestoreWorks = [] }) {
-  const [pinnedWork, setPinnedWork] = useState(null);
-  const [hoveredImageIdx, setHoveredImageIdx] = useState(null);
-  const [lightbox, setLightbox] = useState(null); // { image, work }
-  const stripRef = useRef(null);
+  const [lightbox, setLightbox] = useState(null);
 
-  useEffect(() => {
-    const el = stripRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      const delta = Math.abs(e.deltaY) > Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
-      if (el.scrollLeft === 0 && delta < 0) return; // at start, scrolling back — let page scroll
-      e.preventDefault();
-      e.stopPropagation();
-      el.scrollLeft += delta;
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, []);
-
-  const seenWorkIds = new Set(firestoreWorks.map((w) => w.id));
+  const seen = new Set(firestoreWorks.map((w) => w.id));
   const allWorks = [
     ...firestoreWorks,
-    ...selectedWorks.filter((w) => !seenWorkIds.has(w.id)),
+    ...selectedWorks.filter((w) => !seen.has(w.id)),
   ];
 
-  // Default to first work; if Firestore loads later, keep existing selection.
-  useEffect(() => {
-    setPinnedWork((prev) => prev ?? allWorks[0] ?? null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [firestoreWorks]);
-
-  const displayWork = pinnedWork;
-  const images = displayWork?.media?.filter((m) => m.type === 'image') ?? [];
-
   return (
-    <div className="h-full relative" style={{ paddingTop: '180px' }}>
-
-      {/* Full-width photo strip */}
-      <div ref={stripRef} className="overflow-x-auto overflow-y-hidden no-scrollbar" style={{ height: '60vh' }}>
-        <div className="flex gap-2 h-full items-stretch">
-          {images.map((m, i) => {
-            const showCaption =
-              m.caption &&
-              (CAPTION_VISIBILITY === 0 || hoveredImageIdx === i);
-            return (
-              <div
-                key={i}
-                className="flex flex-col shrink-0 h-full"
-                style={i === 0 ? { paddingLeft: '20vw' } : undefined}
-                onMouseEnter={() => setHoveredImageIdx(i)}
-                onMouseLeave={() => setHoveredImageIdx(null)}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={m.url}
-                  alt=""
-                  className="w-auto object-cover cursor-pointer"
-                  style={{ height: 'calc(60vh - 3rem)' }}
-                  onClick={() => setLightbox({ image: m, work: displayWork })}
-                />
-                <div className="h-10 mt-2 max-w-[240px]">
-                  {showCaption && (
-                    <p className="font-alte-haas text-[11px] text-neutral-500 leading-relaxed">
-                      {m.caption}
-                    </p>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    <>
+      <div className="mx-auto px-4 pt-24 pb-24" style={{ maxWidth: `${ROW_MAX_WIDTH}px` }}>
+        {allWorks.map((work) => {
+          const images = (work.media ?? []).filter((m) => m.type === 'image' && m.url);
+          if (images.length === 0) return null;
+          return (
+            <WorkRow
+              key={work.id}
+              work={work}
+              images={images}
+              onImageClick={(image) => setLightbox({ image, work })}
+            />
+          );
+        })}
       </div>
 
-      {/* Lightbox */}
       {lightbox && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
+          className="fixed inset-0 z-50 flex items-center justify-center cursor-zoom-out"
           style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}
           onClick={() => setLightbox(null)}
         >
-          <div className="flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+          <div className="flex flex-col items-center cursor-zoom-out" onClick={() => setLightbox(null)}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={lightbox.image.url}
@@ -108,28 +60,45 @@ export default function WorkSection({ firestoreWorks = [] }) {
           </div>
         </div>
       )}
+    </>
+  );
+}
 
-      {/* Left sidebar overlaid on top of photo strip */}
-      <aside
-        className="absolute top-[180px] left-0 w-44 pl-8 pr-4 overflow-y-auto no-scrollbar z-10 uppercase pt-2"
-        style={{ height: '60vh', fontFamily: '"Times New Roman", serif', color: 'rgb(102,102,102)' }}
-      >
-        <h3 className="text-xs italic my-3">WORKS</h3>
-        <ul className="pl-6 transition-all duration-300 ease-in-out">
-          {allWorks.map((work) => (
-            <li
-              key={work.id}
-              onClick={() => setPinnedWork(pinnedWork?.id === work.id ? null : work)}
-              className={`text-xs cursor-pointer hover:underline m-0 p-0 leading-tight ${
-                work.id === displayWork?.id ? 'underline underline-offset-2' : ''
-              }`}
-            >
-              {work.title}
-            </li>
+function WorkRow({ work, images, onImageClick }) {
+  return (
+    <section style={{ paddingTop: `${ROW_PADDING}px`, paddingBottom: `${ROW_PADDING}px` }}>
+      <header className="flex justify-between items-baseline mb-3 mx-[22px]">
+        <span
+          className="font-alte-haas font-bold uppercase text-[11px] text-black"
+          style={{ letterSpacing: '-0.4px' }}
+        >
+          {work.title}
+        </span>
+        <span
+          className="font-alte-haas font-bold uppercase text-[11px] text-black"
+          style={{ letterSpacing: '-0.4px' }}
+        >
+          {work.year}
+        </span>
+      </header>
+      <div className="overflow-x-auto no-scrollbar mx-[22px]">
+        <div
+          className="flex items-stretch"
+          style={{ height: `${ROW_HEIGHT}px`, gap: `${ROW_GAP}px` }}
+        >
+          {images.map((m, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={i}
+              src={m.url}
+              alt={m.caption ?? ''}
+              className="h-full w-auto object-cover shrink-0 select-none cursor-zoom-in"
+              draggable={false}
+              onClick={() => onImageClick(m)}
+            />
           ))}
-        </ul>
-      </aside>
-
-    </div>
+        </div>
+      </div>
+    </section>
   );
 }
