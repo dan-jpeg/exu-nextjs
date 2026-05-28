@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { forwardRef, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import VideoBackground from '@/components/VideoBackground';
@@ -10,18 +10,19 @@ const NAV_H = 64;
 const ROW_MAX_WIDTH = 833;
 const ROW_HEIGHT = 412;
 const ROW_GAP = 7;
-const ROW_PADDING = 42;
 
 export default function AltWorksPage() {
   const router = useRouter();
   const heroRef = useRef(null);
   const mainRef = useRef(null);
   const lastScrollY = useRef(0);
+  const sectionRefs = useRef([]);
   const [firestoreWorks, setFirestoreWorks] = useState([]);
   const [emailCopied, setEmailCopied] = useState(false);
   const [navLocked, setNavLocked] = useState(false);
   const [navVisible, setNavVisible] = useState(true);
   const [lightbox, setLightbox] = useState(null);
+  const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
     fetch('/api/works')
@@ -39,6 +40,17 @@ export default function AltWorksPage() {
         mainRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     }
+  }, []);
+
+  // Enable vertical scroll-snap paging while this page is mounted.
+  useEffect(() => {
+    const scrollRoot = document.getElementById('scroll-root');
+    if (!scrollRoot) return;
+    const prev = scrollRoot.style.scrollSnapType;
+    scrollRoot.style.scrollSnapType = 'y mandatory';
+    return () => {
+      scrollRoot.style.scrollSnapType = prev;
+    };
   }, []);
 
   useEffect(() => {
@@ -91,6 +103,37 @@ export default function AltWorksPage() {
     ...firestoreWorks,
     ...selectedWorks.filter((w) => !seen.has(w.id)),
   ];
+
+  const visibleWorks = allWorks.filter(
+    (w) => (w.media ?? []).some((m) => m.type === 'image' && m.url)
+  );
+
+  // Track which work section is currently in view for the page indicator.
+  useEffect(() => {
+    const scrollRoot = document.getElementById('scroll-root');
+    if (!scrollRoot) return;
+    const nodes = sectionRefs.current.filter(Boolean);
+    if (nodes.length === 0) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) {
+          const idx = nodes.indexOf(visible.target);
+          if (idx >= 0) setActiveIndex(idx);
+        }
+      },
+      { root: scrollRoot, threshold: [0.5, 0.75] }
+    );
+    nodes.forEach((n) => obs.observe(n));
+    return () => obs.disconnect();
+  }, [visibleWorks.length]);
+
+  function jumpTo(idx) {
+    const node = sectionRefs.current[idx];
+    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   const navContent = (
     <div
@@ -145,7 +188,10 @@ export default function AltWorksPage() {
         EDIE XU
       </span>
 
-      <div ref={heroRef} style={{ height: `calc(100vh - ${NAV_H}px)` }} />
+      <div
+        ref={heroRef}
+        style={{ height: `calc(100vh - ${NAV_H}px)`, scrollSnapAlign: 'start' }}
+      />
 
       <main ref={mainRef} className="relative z-20 bg-white w-full">
         {navLocked && (
@@ -164,13 +210,13 @@ export default function AltWorksPage() {
           {!navLocked && navContent}
         </div>
 
-        <div className="mx-auto px-4 pb-24" style={{ maxWidth: `${ROW_MAX_WIDTH}px` }}>
-          {allWorks.map((work) => {
-            const images = (work.media ?? []).filter((m) => m.type === 'image' && m.url);
-            if (images.length === 0) return null;
+        <div>
+          {visibleWorks.map((work, i) => {
+            const images = work.media.filter((m) => m.type === 'image' && m.url);
             return (
               <WorkRow
                 key={work.id}
+                ref={(el) => { sectionRefs.current[i] = el; }}
                 work={work}
                 images={images}
                 onImageClick={(image) => setLightbox({ image, work })}
@@ -179,6 +225,31 @@ export default function AltWorksPage() {
           })}
         </div>
       </main>
+
+      {navLocked && visibleWorks.length > 1 && (
+        <div
+          className="fixed right-6 z-40 flex flex-col items-end font-alte-haas text-[16px] select-none"
+          style={{
+            bottom: `calc(50vh - ${NAV_H / 2}px - ${(ROW_HEIGHT + 28) / 2}px)`,
+            gap: '32px',
+            color: 'black',
+          }}
+        >
+          {visibleWorks.map((_, i) => (
+            <span
+              key={i}
+              onClick={() => jumpTo(i)}
+              className="cursor-pointer transition-opacity"
+              style={{
+                opacity: i === activeIndex ? 0.8 : 0.2,
+                fontWeight: i === activeIndex ? 700 : 400,
+              }}
+            >
+              {i + 1}
+            </span>
+          ))}
+        </div>
+      )}
 
       {lightbox && (
         <div
@@ -210,41 +281,50 @@ export default function AltWorksPage() {
   );
 }
 
-function WorkRow({ work, images, onImageClick }) {
+const WorkRow = forwardRef(function WorkRow({ work, images, onImageClick }, ref) {
   return (
-    <section style={{ paddingTop: `${ROW_PADDING}px`, paddingBottom: `${ROW_PADDING}px`}}>
-      <header className="flex justify-between items-baseline mb-3 mx-[22px]">
-        <span
-          className="font-alte-haas font-bold uppercase text-[13.5px] text-black"
-          style={{ letterSpacing: '-0.4px' }}
-        >
-          {work.title}
-        </span>
-        <span
-          className="font-alte-haas font-bold uppercase text-[13.5px] text-black"
-          style={{ letterSpacing: '-0.4px' }}
-        >
-          {work.year}
-        </span>
-      </header>
-      <div className="overflow-x-auto no-scrollbar mx-[22px] rounded-t-[6px]">
-        <div
-          className="flex items-stretch"
-          style={{ height: `${ROW_HEIGHT}px`, gap: `${ROW_GAP}px` }}
-        >
-          {images.map((m, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={i}
-              src={m.url}
-              alt={m.caption ?? ''}
-              className="h-full w-auto object-cover shrink-0 select-none cursor-zoom-in"
-              draggable={false}
-              onClick={() => onImageClick(m)}
-            />
-          ))}
+    <section
+      ref={ref}
+      className="flex items-center justify-center"
+      style={{
+        height: `calc(100vh - ${NAV_H}px)`,
+        scrollSnapAlign: 'start',
+      }}
+    >
+      <div className="w-full mx-auto px-4" style={{ maxWidth: `${ROW_MAX_WIDTH}px` }}>
+        <header className="flex justify-between items-baseline mb-3 mx-[22px]">
+          <span
+            className="font-alte-haas font-bold uppercase text-[13.5px] text-black"
+            style={{ letterSpacing: '-0.4px' }}
+          >
+            {work.title}
+          </span>
+          <span
+            className="font-alte-haas font-bold uppercase text-[13.5px] text-black"
+            style={{ letterSpacing: '-0.4px' }}
+          >
+            {work.year}
+          </span>
+        </header>
+        <div className="overflow-x-auto no-scrollbar mx-[22px] rounded-t-[6px]">
+          <div
+            className="flex items-stretch"
+            style={{ height: `${ROW_HEIGHT}px`, gap: `${ROW_GAP}px` }}
+          >
+            {images.map((m, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={m.url}
+                alt={m.caption ?? ''}
+                className="h-full w-auto object-cover shrink-0 select-none cursor-zoom-in"
+                draggable={false}
+                onClick={() => onImageClick(m)}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </section>
   );
-}
+});
